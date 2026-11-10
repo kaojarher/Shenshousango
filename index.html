@@ -48,6 +48,7 @@ details#netbox{margin:8px 0}details#netbox>summary{cursor:pointer;padding:10px;m
 #tl{color:#e8b34a;margin-left:6px}
 .float.a{color:#ff9a3a;font-size:26px}.float.w{color:#aaa;font-size:18px}.float.b{color:#ff7a2a}
 .ov{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:20;padding:16px}.dlg{background:#2c251b;border:2px solid #e8b34a;border-radius:12px;padding:16px;max-width:360px}
+.float.m{color:#9cf;font-size:20px}
 </style></head><body><main>
 <h1>神獸三國 ‧ 1–8 人 WebRTC 對戰</h1>
 <div id="top" class="row" style="background:#6b4a22;border-radius:6px;padding:4px"></div>
@@ -93,14 +94,16 @@ LPC 圖（標準 LPC 精靈表 832×1344，取面向下行）：
 <script>
 const $=id=>document.getElementById(id);
 let TM,TL=30,tkey='',FXQ=0,lastQ=0;
+const pas=(a,t)=>{let x=1;if(a.g==='關羽'&&t.hp<t.max*.5)x*=1.15;if(a.g==='呂布'&&a.hp<a.max*.3)x*=1.3;if(t.g==='張飛')x*=.9;return x};
 const fx=(id,v,k)=>{S.fx=(S.fx||[]).slice(-9);S.fx.push({q:++FXQ,id,v,k})};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;d.style.top=(16+document.querySelectorAll('.toast').length*52)+'px';document.body.append(d);setTimeout(()=>d.remove(),3500)}
 const GEN=[{n:'關羽',hp:120,atk:18,def:6},{n:'張飛',hp:140,atk:16,def:7},{n:'趙雲',hp:110,atk:17,def:5},{n:'諸葛亮',hp:90,atk:20,def:3},{n:'呂布',hp:105,atk:22,def:4},{n:'曹操',hp:115,atk:15,def:6}];
 const BST={青龍:'龍息：單體 1.8 倍傷害',白虎:'虎嘯：50% 暴擊 2.4 倍，暴擊使目標暈眩 1 回合',朱雀:'烈焰：全體敵人 0.7 倍傷害並灼燒 2 回合（每回合損 5% 最大生命）',玄武:'玄甲：回復 25 血並防禦'};
+const PAS={關羽:'武聖：目標生命低於 50% 時傷害 +15%',張飛:'猛將：受到的傷害 -10%',趙雲:'龍膽：15% 機率閃避攻擊',諸葛亮:'智謀：神獸技冷卻縮短 1 回合',呂布:'無雙：自身生命低於 30% 時傷害 +30%',曹操:'奸雄：造成傷害時回復 10% 傷害量'};
 const BEAT={青龍:'玄武',玄武:'朱雀',朱雀:'白虎',白虎:'青龍'};
 GEN.forEach((g,i)=>gen.add(new Option(g.n,i)));Object.keys(BST).forEach(b=>bst.add(new Option(b,b)));
-const bsd=$('bsd');const upd=()=>{bsd.textContent=BST[bst.value]+'｜克制：'+BEAT[bst.value]+'（傷害×1.2）　被克：'+Object.keys(BEAT).find(k=>BEAT[k]===bst.value)+'（傷害×0.85）'};bst.onchange=upd;upd();
+const bsd=$('bsd');const upd=()=>{bsd.textContent='【'+PAS[GEN[gen.value].n]+'】　'+BST[bst.value]+'｜克制：'+BEAT[bst.value]+'（傷害×1.2）　被克：'+Object.keys(BEAT).find(k=>BEAT[k]===bst.value)+'（傷害×0.85）'};bst.onchange=upd;upd();
 
 let S={players:[],order:[],cur:0,over:null,turn:0,log:[]};
 let FACES={},myid=0,isHost=true,peers={},hostDc=null,nextId=1,mySprite=null,myFace=null;
@@ -116,7 +119,7 @@ function drawFace(cv,img,name){
 }
 function refreshMe(){drawFace($('me'),mySprite,GEN[gen.value].n);
   const t=document.createElement('canvas');t.width=t.height=64;drawFace(t,mySprite,GEN[gen.value].n);myFace=t.toDataURL()}
-gen.onchange=refreshMe;
+gen.onchange=()=>{refreshMe();upd()};
 function loadImg(src,cors){const im=new Image();if(cors)im.crossOrigin='anonymous';
   im.onload=()=>{mySprite=im;refreshMe()};im.onerror=()=>alert('圖片載入失敗');im.src=src}
 $('lpcf').onchange=e=>{const f=e.target.files[0];if(f)loadImg(URL.createObjectURL(f))};
@@ -124,7 +127,7 @@ $('lpcb').onclick=()=>{if($('lpcu').value)loadImg($('lpcu').value,true)};
 refreshMe();
 
 /* ---------- game core (host authoritative) ---------- */
-function mk(id,name,gi,b,bot,ex){const g=GEN[gi];ex=ex||{a:0,h:0};const A=Math.min(ex.a|0,200),H=Math.min(ex.h|0,2000);return{id,name,g:g.n,b,hp:g.hp+H,max:g.hp+H,atk:g.atk+A,def:g.def,cd:0,guard:false,bot:!!bot,alive:true,burn:0,stun:0}}
+function mk(id,name,gi,b,bot,ex){const g=GEN[gi];ex=ex||{a:0,h:0};const A=Math.min(ex.a|0,200),H=Math.min(ex.h|0,2000);return{id,name,g:g.n,b,hp:g.hp+H,max:g.hp+H,atk:g.atk+A,def:g.def+Math.min(ex.d|0,60),cd:0,guard:false,bot:!!bot,alive:true,burn:0,stun:0}}
 const alive=()=>S.players.filter(p=>p.alive);
 function startGame(){
   if(S.players.length<2){while(S.players.length<2)addBot()}
@@ -135,8 +138,8 @@ function startGame(){
 function addBot(){if(S.players.length>=8)return;const id=nextId++;
   const gi=Math.floor(Math.random()*GEN.length),bs=Object.keys(BST)[Math.floor(Math.random()*4)];
   S.players.push(mk(id,'AI-'+GEN[gi].n,gi,bs,true));bc()}
-function dmg(a,t,m){const crit=m>=2;let e=1;if(BEAT[a.b]===t.b)e=1.2;else if(BEAT[t.b]===a.b)e=.85;let d=Math.max(1,Math.round(a.atk*m*e*(.9+Math.random()*.2)-t.def));if(t.guard)d=Math.ceil(d/2);
-  t.hp-=d;fx(t.id,d,crit?'c':e>1?'a':e<1?'w':'d');if(t.hp<=0){t.hp=0;t.alive=false;log(t.name+' 陣亡')}return d}
+function dmg(a,t,m){const crit=m>=2;if(t.g==='趙雲'&&Math.random()<.15){fx(t.id,'閃避','m');return 0}let e=1;if(BEAT[a.b]===t.b)e=1.2;else if(BEAT[t.b]===a.b)e=.85;let d=Math.max(1,Math.round(a.atk*m*e*pas(a,t)*(.9+Math.random()*.2)-t.def));if(t.guard)d=Math.ceil(d/2);
+  t.hp-=d;fx(t.id,d,crit?'c':e>1?'a':e<1?'w':'d');if(a.g==='曹操'&&d>0&&a.alive){const h=Math.max(1,Math.round(d*.1));a.hp=Math.min(a.max,a.hp+h);fx(a.id,h,'h')}if(t.hp<=0){t.hp=0;t.alive=false;log(t.name+' 陣亡')}return d}
 function act(pid,type,tid){
   if(S.over||S.order[S.cur]!==pid)return;
   const a=S.players.find(p=>p.id===pid);if(!a||!a.alive)return;
@@ -146,9 +149,9 @@ function act(pid,type,tid){
   if(type==='atk')log(`${a.name} 攻擊 ${t.name}，傷害 ${dmg(a,t,1)}`);
   else if(type==='guard'){a.guard=true;log(a.name+' 採取防禦')}
   else if(type==='item'){const h=Math.round(a.max*.25);a.hp=Math.min(a.max,a.hp+h);fx(a.id,h,'h');log(a.name+' 使用回春丹，回復 '+h)}
-  else if(type==='skill'&&a.cd<=0){a.cd=3;
+  else if(type==='skill'&&a.cd<=0){a.cd=a.g==='諸葛亮'?2:3;
     if(a.b==='青龍')log(`${a.name}【龍息】${t.name}，傷害 ${dmg(a,t,1.8)}`);
-    else if(a.b==='白虎'){const c=Math.random()<.5;if(c)t.stun=1;log(`${a.name}【虎嘯】${t.name}${c?'（暴擊・暈眩）':''}，傷害 ${dmg(a,t,c?2.4:1)}`)}
+    else if(a.b==='白虎'){const c=Math.random()<.5,dd=dmg(a,t,c?2.4:1),st=c&&dd>0;if(st)t.stun=1;log(`${a.name}【虎嘯】${t.name}${st?'（暴擊・暈眩）':c?'（暴擊）':''}，傷害 ${dd}`)}
     else if(a.b==='朱雀'){log(`${a.name}【烈焰】橫掃全場`);alive().filter(p=>p.id!==a.id).forEach(p=>{dmg(a,p,.7);p.burn=2})}
     else{a.hp=Math.min(a.max,a.hp+25);fx(a.id,25,'h');a.guard=true;log(a.name+'【玄甲】回復並防禦')}
   }else return;
@@ -202,7 +205,7 @@ $('addbot').onclick=()=>{if(!isHost)return;addBot()};
 $('joinb').onclick=async()=>{
   try{const pc=newPC();isHost=false;
     pc.ondatachannel=e=>{hostDc=e.channel;
-      hostDc.onopen=()=>{hostDc.send(JSON.stringify({t:'join',name:nm.value,gi:+gen.value,b:bst.value,ex:{a:P.atkB,h:P.hpB},face:myFace}));$('net').textContent='已連上房主'};
+      hostDc.onopen=()=>{hostDc.send(JSON.stringify({t:'join',name:nm.value,gi:+gen.value,b:bst.value,ex:exs(),face:myFace}));$('net').textContent='已連上房主'};
       hostDc.onmessage=e=>{const m=JSON.parse(e.data);
         if(m.t==='hello')myid=m.id;if(m.t==='state'){S=m.s;render()}if(m.t==='faces'){FACES=m.f;render()}}};
     await pc.setRemoteDescription(dec($('offin').value));
@@ -215,7 +218,7 @@ let tgt=null;
 function me(){return S.players.find(p=>p.id===myid)}
 function rel(p){const m=me();if(!m||p.id===m.id)return'';return BEAT[m.b]===p.b?' <span style="color:#6f6">▲克制</span>':BEAT[p.b]===m.b?' <span style="color:#e55">▼被克</span>':''}
 function render(){
-  if(isHost&&!me()&&!S.players.find(p=>p.id===0)){S.players.unshift(mk(0,nm.value,+gen.value,bst.value,0,{a:P.atkB,h:P.hpB}));FACES[0]=myFace}
+  if(isHost&&!me()&&!S.players.find(p=>p.id===0)){S.players.unshift(mk(0,nm.value,+gen.value,bst.value,0,exs()));FACES[0]=myFace}
   const en=S.players.filter(p=>p.alive&&p.id!==myid);if(!tgt||!en.find(p=>p.id===tgt))tgt=en.length?en[0].id:null;
   const f=$('field');f.innerHTML='';
   S.players.forEach(p=>{
@@ -227,8 +230,8 @@ function render(){
     d.insertAdjacentHTML('beforeend',`<div><b>${esc(p.name)}</b></div><div>${p.g}・${p.b}${rel(p)}</div><div class="bar"><i style="width:${p.hp/p.max*100}%;background:${p.hp/p.max>.5?'#5c5':p.hp/p.max>.25?'#ec4':'#e55'}"></i></div><small>${p.hp}/${p.max} 攻${p.atk} 防${p.def} 技CD${p.cd}${p.guard?' 🛡':''}${p.burn>0?' 🔥'+p.burn:''}${p.stun>0?' 💫':''}</small>`);
     d.dataset.id=p.id;d.onclick=()=>{tgt=p.id;f.querySelectorAll('.card').forEach(c=>c.classList.toggle('tgt',c.dataset.id==p.id))};f.append(d)});
   const fxs=S.fx||[],mx=fxs.reduce((m,x)=>Math.max(m,x.q),0);if(mx<lastQ)lastQ=0;
-  fxs.filter(x=>x.q>lastQ).forEach(x=>{const c=f.querySelector('[data-id="'+x.id+'"]');if(!c)return;const e=document.createElement('span');e.className='float '+x.k;e.textContent=(x.k==='h'?'+':'-')+x.v;c.append(e);
-    if(x.k!=='h'){c.classList.add('hit');setTimeout(()=>c.classList.remove('hit'),350)}setTimeout(()=>e.remove(),900)});
+  fxs.filter(x=>x.q>lastQ).forEach(x=>{const c=f.querySelector('[data-id="'+x.id+'"]');if(!c)return;const e=document.createElement('span');e.className='float '+x.k;e.textContent=(x.k==='h'?'+':x.k==='m'?'':'-')+x.v;c.append(e);
+    if(x.k!=='h'&&x.k!=='m'){c.classList.add('hit');setTimeout(()=>c.classList.remove('hit'),350)}setTimeout(()=>e.remove(),900)});
   lastQ=Math.max(lastQ,mx);
   const mine=!S.over&&S.order[S.cur]===myid&&me()&&me().alive;
   atk.disabled=grd.disabled=!mine;itm.disabled=!mine||P.potion<1;skl.disabled=!mine||me().cd>0;skl.textContent='神獸技'+(me()&&me().cd>0?'（CD '+me().cd+'）':'');itm.textContent='回春丹×'+P.potion;pay();hud();
@@ -251,7 +254,7 @@ $('imp').onchange=e=>{const f=e.target.files[0];if(!f)return;
   f.text().then(t=>{try{const j=JSON.parse(t);if(!j.state||!j.state.players)throw 0;
     S=j.state;FACES=j.faces||{};if(j.P)Object.assign(P,j.P);paidKey=S.log.length+''+S.over;sv();nextId=Math.max(...S.players.map(p=>p.id),0)+1;log('已匯入戰績');bc();botMaybe()}catch(_){alert('JSON 格式錯誤')}})};
 
-let P={lv:1,exp:0,gold:1000,gem:50,star:0,vip:0,wins:0,atkB:0,hpB:0,potion:2,gift:0,clear:{}};
+let P={lv:1,exp:0,gold:1000,gem:50,star:0,vip:0,wins:0,atkB:0,hpB:0,potion:2,gift:0,clear:{},eq:{},bag:[]};
 try{Object.assign(P,JSON.parse(localStorage.sk||'{}'))}catch(e){}
 let paidKey='';
 const sv=()=>{try{localStorage.sk=JSON.stringify(P)}catch(e){}};
@@ -267,20 +270,20 @@ function hud(){try{const n=DQ.filter((q,i)=>q[1]()>=q[2]&&!P.dq.c[i]).length;doc
  $('top').innerHTML=`<span>⭐${P.star}</span><span>V${P.vip}</span><span>🪙${P.gold}</span><span>💎${P.gem}</span><span>${TT[Math.min(4,P.lv>>1)]} Lv${P.lv} ${esc(nm.value)}</span>`;
   $('xp').style.background=`linear-gradient(90deg,#6b4a22 ${P.exp/need()*100}%,#14110d ${P.exp/need()*100}%)`;$('xp').textContent=`${P.exp}/${need()}　${(P.exp/need()*100).toFixed(2)}%`}
 function pay(){if(!S.over||!me())return;const k=S.log.length+''+S.over;if(paidKey===k)return;paidKey=k;
-  const w=S.over===me().name;P.dq.f++;if(w)P.dq.w++;const gb=Math.round((w?500:100)*(1+.1*P.vip));toast((w?'🏆 勝利！':'💀 敗北… ')+'獲得 '+gb+' 金、'+(w?80:30)+' 經驗'+(P.vip?'（VIP +'+P.vip*10+'%）':''));P.gold+=gb;P.exp+=w?80:30;if(w){P.wins++;P.star+=2}if(w&&S.stage){const[c,t]=S.stage.split("-");P.clear=P.clear||{};const first=!P.clear[S.stage];P.clear[S.stage]=(P.clear[S.stage]|0)+1;const sg=Math.round(CH[c].s[t][1]*50*S.mul*(first?1:.3));P.gold+=sg;if(first){P.gem+=2;P.star+=5}toast('⚔️ '+(first?'首通！':'重複通關：')+'+'+sg+' 金'+(first?'、2 元寶、5 星':'（獎勵 30%）'))}
+  const w=S.over===me().name;P.dq.f++;if(w)P.dq.w++;const gb=Math.round((w?500:100)*(1+.1*P.vip));toast((w?'🏆 勝利！':'💀 敗北… ')+'獲得 '+gb+' 金、'+(w?80:30)+' 經驗'+(P.vip?'（VIP +'+P.vip*10+'%）':''));P.gold+=gb;P.exp+=w?80:30;if(w){P.wins++;P.star+=2}if(w&&S.stage){const[c,t]=S.stage.split("-");P.clear=P.clear||{};const first=!P.clear[S.stage];P.clear[S.stage]=(P.clear[S.stage]|0)+1;const sg=Math.round(CH[c].s[t][1]*50*S.mul*(first?1:.3));P.gold+=sg;if(first){P.gem+=2;P.star+=5;const it=roll(1);P.bag.push(it);setTimeout(()=>toast('🎁 掉落裝備 '+iname(it)),600)}toast('⚔️ '+(first?'首通！':'重複通關：')+'+'+sg+' 金'+(first?'、2 元寶、5 星':'（獎勵 30%）'))}
   while(P.exp>=need()){P.exp-=need();P.lv++;P.gem+=5}sv()}
 function go(p){document.querySelectorAll('.pg').forEach(e=>e.classList.toggle('on',e.id==='pg-'+p));hud()}
 const ACH=[['初勝：贏 1 場',()=>P.wins>=1],['五勝：贏 5 場',()=>P.wins>=5],['十勝：贏 10 場',()=>P.wins>=10],['達到 Lv5',()=>P.lv>=5],['富翁：持有 10000 金',()=>P.gold>=10000]];
 const ach=()=>ACH.map(a=>`<div>${a[1]()?'✅':'⬜'} ${a[0]}</div>`).join('');
 const SUBS={
- 角色:()=>`<p>${esc(nm.value)}　Lv${P.lv}　勝場 ${P.wins}</p><p>攻擊加成 +${P.atkB}　生命加成 +${P.hpB}</p><p>VIP ${P.vip}（勝利金幣 +${P.vip*10}%）　⭐${P.star}</p>`,
- 背包:()=>`<p>回春丹 ×${P.potion}（對戰中使用，回復 25% 最大生命）</p>`,
+ 角色:()=>`<p>${esc(nm.value)}　Lv${P.lv}　勝場 ${P.wins}</p><p>攻擊加成 +${exs().a}　防禦加成 +${exs().d}　生命加成 +${exs().h}（含裝備）</p><p>VIP ${P.vip}（勝利金幣 +${P.vip*10}%）　⭐${P.star}</p>`,
+ 背包:()=>{const e=exs();return `<p>回春丹 ×${P.potion}（對戰中使用，回復 25% 最大生命）</p><p><b>已裝備</b>（攻 +${e.a-P.atkB}　防 +${e.d}　生命 +${e.h-P.hpB}）</p>`+['W','A','T'].map(s=>{const it=P.eq[s];return `<div class="row">${EQ[s].n}：${it?`<span style="color:${icol(it)}">${iname(it)}</span><button onclick="unequip('${s}')">卸下</button>${(it.l|0)>=5?'':`<button onclick="enh('eq','${s}')">強化 ${ecost(it)} 金（${Math.round(ER[it.l|0]*100)}%）</button>`}`:'（空）'}</div>`}).join('')+`<p><b>裝備背包 ${P.bag.length}/30</b></p><div class="row">${[0,1,2].map(q=>P.bag.filter(it=>it.q===q&&!(it.l|0)).length>=3?`<button onclick="fuse(${q})">合成 3 件${QL[q][0]}→${QL[q+1][0]}</button>`:'').join('')}</div>`+(P.bag.map((it,i)=>{const o=P.eq[it.s],df=eff(it)-(o?eff(o):0);return `<div class="row"><span style="color:${icol(it)}">${iname(it)}</span><small>（${df>=0?'+':''}${df}）</small><button onclick="equip(${i})">裝備</button>${(it.l|0)>=5?'':`<button onclick="enh('bag',${i})">強化 ${ecost(it)} 金</button>`}<button onclick="sell(${i})">賣 ${sp(it)} 金</button></div>`}).join('')||'<small>目前沒有裝備。可在鐵匠鋪打造、迷宮掉落或闖關首通取得。</small>')},
  商店:()=>`<p>🪙${P.gold}　💎${P.gem}　⭐${P.star}</p><div class="row"><button onclick="buy('potion')">回春丹 200 金</button><button onclick="starx()">⭐50 換回春丹×5</button></div><div class="row"><button onclick="wish()">🙏 神獸祈願 💎10</button></div><div id="wr"></div><small>祈願可得金幣、回春丹、永久攻擊／生命強化。累計花費 50 元寶升 1 級 VIP（上限 V5，勝利金幣每級 +10%）。</small>`,
- 鐵匠鋪:()=>`<p>🪙${P.gold}</p><button onclick="buy('atk')">強化攻擊 +1（${200*(P.atkB+1)} 金）</button> <button onclick="buy('hp')">強化生命 +10（${200*(P.hpB/10+1)} 金）</button>`,
+ 鐵匠鋪:()=>`<p>🪙${P.gold}</p><button onclick="buy('atk')">強化攻擊 +1（${200*(P.atkB+1)} 金）</button> <button onclick="buy('hp')">強化生命 +10（${200*(P.hpB/10+1)} 金）</button><div class="row"><button onclick="craft()">🔨 打造裝備 500 金</button></div><div id="wr"></div><small>隨機部位與品質：凡 55%／良 30%／精 12%／神 3%，數值隨等級成長。</small>`,
  成就:ach,
  任務:()=>DQ.map((q,i)=>{const v=Math.min(q[1](),q[2]),ok=v>=q[2],got=P.dq.c[i];return `<div class="row">${got?'✅':ok?'🎁':'⬜'} ${q[0]}（${v}/${q[2]}）→ ${q[3]}<button ${!ok||got?'disabled':''} onclick="claim(${i})">${got?'已領':'領取'}</button></div>`}).join('')+`<small>每日重置（依本機日期）。連續登入 ${P.streak|0} 天，第 7 天加送 5 元寶。</small>`,
  煉金:()=>`<p>🪙${P.gold}　💎${P.gem}</p><button onclick="buy('alc')">1000 金煉成 1 元寶</button>`,
- 圖鑑:()=>GEN.map(g=>`<div><img src="${SP[g.n]}" width="32" height="32" style="image-rendering:pixelated;vertical-align:middle"> ${g.n}　HP${g.hp} 攻${g.atk} 防${g.def}</div>`).join('')+Object.entries(BST).map(([k,v])=>`<div>${k}：${v}</div>`).join(''),
+ 圖鑑:()=>GEN.map(g=>`<div><img src="${SP[g.n]}" width="32" height="32" style="image-rendering:pixelated;vertical-align:middle"> ${g.n}　HP${g.hp} 攻${g.atk} 防${g.def}<br><small>被動・${PAS[g.n]}</small></div>`).join('')+Object.entries(BST).map(([k,v])=>`<div>${k}：${v}</div>`).join(''),
  迷宮:()=>`<button onclick="maze()">探索迷宮</button><div id="mr"></div>`};
 function sub(n){go('sub');$('st').textContent=n;$('sc').innerHTML=SUBS[n]()}
 function buy(k){const c={potion:200,atk:200*(P.atkB+1),hp:200*(P.hpB/10+1),alc:1000}[k];
@@ -290,12 +293,29 @@ function buy(k){const c={potion:200,atk:200*(P.atkB+1),hp:200*(P.hpB/10+1),alc:1
 function maze(){const r=Math.random();let t;
   if(r<.5){const g=100+Math.floor(Math.random()*200);P.gold+=g;t='獲得 '+g+' 金'}
   else if(r<.8){P.potion++;t='獲得回春丹 ×1'}else{P.gold=Math.max(0,P.gold-50);t='陷阱！損失 50 金'}
+  if(Math.random()<.15){const it=roll();P.bag.push(it);t+='；掉落裝備 '+iname(it)}
   P.dq.m=(P.dq.m|0)+1;sv();sub('迷宮');$('mr').textContent=t;hud()}
 function starx(){if(P.star<50)return alert('星數不足');P.star-=50;P.potion+=5;sv();sub('商店');hud()}
 function wish(){if(P.gem<10)return alert('元寶不足');P.gem-=10;P.spent=(P.spent|0)+10;P.vip=Math.min(5,Math.floor(P.spent/50));
   const r=Math.random();let t;
   if(r<.4){P.gold+=800;t='🪙 金幣 ×800'}else if(r<.7){P.potion+=3;t='💊 回春丹 ×3'}else if(r<.9){P.atkB++;t='⚔️ 永久攻擊 +1'}else{P.hpB+=10;t='❤️ 永久生命 +10'}
   sv();sub('商店');$('wr').textContent='祈願結果：'+t;hud()}
+const EQ={W:{n:'武器',b:3,st:'攻擊',nm:['青銅劍','精鋼刀','方天戟','青釭劍']},A:{n:'護甲',b:2,st:'防禦',nm:['布甲','鎖甲','鐵甲','龍鱗甲']},T:{n:'飾品',b:15,st:'生命',nm:['木珮','銅符','玉珮','神獸珠']}};
+const QL=[['凡',1,'#bbb'],['良',1.6,'#6c6'],['精',2.4,'#6af'],['神',3.6,'#c6f']];
+const eff=it=>Math.round(it.v*(1+.2*(it.l|0)));
+const iname=it=>QL[it.q][0]+'・'+EQ[it.s].nm[it.q]+((it.l|0)?'【+'+it.l+'】':'')+' +'+eff(it)+EQ[it.s].st;
+const sp=it=>Math.round(50*(it.q+1)*(it.q+1)*(1+.25*(it.l|0)));
+const ER=[1,.9,.75,.55,.35],ecost=it=>200*((it.l|0)+1)*(it.q+1);
+const icol=it=>QL[it.q][2];
+function roll(minq){const r=Math.random();let q=r<.55?0:r<.85?1:r<.97?2:3;q=Math.max(q,minq|0);const s='WAT'[Math.floor(Math.random()*3)];return{s,q,v:Math.max(1,Math.round(EQ[s].b*QL[q][1]*(1+P.lv*.1)))}}
+function exs(){let a=0,d=0,h=0;Object.values(P.eq||{}).forEach(it=>{if(!it)return;if(it.s==='W')a+=eff(it);else if(it.s==='A')d+=eff(it);else h+=eff(it)});return{a:P.atkB+a,h:P.hpB+h,d}}
+function craft(){if(P.gold<500)return alert('金幣不足');if(P.bag.length>=30)return alert('背包已滿（30 件）');P.gold-=500;const it=roll();P.bag.push(it);sv();sub('鐵匠鋪');$('wr').textContent='打造成功：'+iname(it);hud()}
+function equip(i){const it=P.bag[i];if(!it)return;const old=P.eq[it.s];P.eq[it.s]=it;P.bag.splice(i,1);if(old)P.bag.push(old);sv();sub('背包')}
+function unequip(k){const it=P.eq[k];if(!it)return;P.bag.push(it);delete P.eq[k];sv();sub('背包')}
+function sell(i){const it=P.bag[i];if(!it)return;P.gold+=sp(it);P.bag.splice(i,1);sv();sub('背包');hud()}
+function enh(w,k){const it=w==='eq'?P.eq[k]:P.bag[k];if(!it)return;const l=it.l|0;if(l>=5)return alert('已達上限 +5');const c=ecost(it);if(P.gold<c)return alert('金幣不足');P.gold-=c;const ok=Math.random()<ER[l];if(ok)it.l=l+1;sv();sub('背包');hud();toast(ok?'✨ 強化成功！'+iname(it):'💥 強化失敗（裝備不會損毀）')}
+function fuse(q){const idx=[];P.bag.forEach((it,i)=>{if(it.q===q&&!(it.l|0)&&idx.length<3)idx.push(i)});if(idx.length<3)return;idx.reverse().forEach(i=>P.bag.splice(i,1));
+  const it=roll(0);it.q=q+1;it.v=Math.max(1,Math.round(EQ[it.s].b*QL[it.q][1]*(1+P.lv*.1)));P.bag.push(it);sv();sub('背包');toast('🔮 合成成功：'+iname(it))}
 function gift(){if(P.gift)return alert('已領取過');P.gift=1;P.gold+=1000;P.gem+=10;sv();hud();alert('獲得 1000 金、10 元寶')}
 function vs(n,boss){if(!isHost)return alert('你是玩家，請等房主開戰');go('battle');if(Object.keys(peers).length)return;
   S={players:[],order:[],cur:0,over:null,turn:0,log:[]};nextId=1;render();
